@@ -59,4 +59,16 @@ else:
             )
             vectorstore = FAISS.from_documents(documents=splits, embedding=google_embeddings)
             return vectorstore.as_retriever(search_kwargs={"k": 5})
-        except Exception as embed_error
+        # FIXED: Added the missing colon (:) at the end of the except line
+        except Exception as embed_error:
+            st.error(f"Embedding Error: {embed_error}")
+            return None
+
+    # Load and sync the documents inside data folder
+    retriever = load_local_knowledge_base()
+
+    if retriever is None:
+        st.warning("The 'data' folder is empty! Please upload your documents (.pdf, .docx, .txt) into the 'data' folder on GitHub.")
+        if st.sidebar.button("Reload Data"):
+            st.rerun()
+    else
