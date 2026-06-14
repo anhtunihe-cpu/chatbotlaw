@@ -5,5 +5,5 @@ langchain-core
 langchain-google-genai
 pypdf
 chromadb
-audiorecorder
+streamlit-audiorecorder
 openai
