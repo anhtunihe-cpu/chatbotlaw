@@ -8,62 +8,55 @@ from langchain_core.runnables import RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
 import os
 
-# Cấu hình giao diện chuẩn cho một ứng dụng tra cứu luật
-st.set_page_config(page_title="Trợ Lý Ảo Tra Cứu Luật", layout="wide", page_icon="⚖️")
+# Cấu hình giao diện chatbot tra cứu luật
+st.set_page_config(page_title="Trợ Lý Tra Cứu Luật", layout="wide", page_icon="⚖️")
 st.title("⚖️ Hệ Thống Chatbot Tra Cứu Điều Khoản Luật Nội Bộ")
 
-# Tự động sinh thư mục 'data' nếu người dùng chưa tạo
+# Tự động tạo thư mục 'data' nếu chưa có
 if not os.path.exists("data"):
     os.makedirs("data")
 
-# Menu bên trái để cấu hình thông tin Key bảo mật
+# Menu bên trái cấu hình Key bảo mật
 st.sidebar.header("🔑 Khởi Tạo Hệ Thống")
-google_api_key = st.sidebar.text_input("Nhập Google Gemini API Key của bạn:", type="password")
+google_api_key = st.sidebar.text_input("Nhập Google Gemini API Key:", type="password")
 
 if not google_api_key:
-    st.info("Vui lòng nhập Google Gemini API Key ở thanh bên trái để kích hoạt trợ lý luật.", icon="🔑")
+    st.info("Vui lòng nhập Google API Key ở thanh bên để kích hoạt trợ lý.", icon="🔑")
 else:
-    # Cấu hình API Key vào hệ thống
+    # Thiết lập biến môi trường cho API Key
     os.environ["GOOGLE_API_KEY"] = google_api_key
 
-    # Hàm tối ưu hóa (Cache) dùng để quét và nạp tất cả tài liệu trong thư mục data
+    # Hàm nạp tài liệu từ thư mục 'data' (Sử dụng Cache)
     @st.cache_resource
     def load_legal_documents():
         documents = []
-        
-        # Tự động quét file PDF luật
         if os.path.exists("data"):
+            # Quét file PDF luật
             pdf_loader = DirectoryLoader("data", glob="**/*.pdf", loader_cls=PyPDFLoader)
             documents.extend(pdf_loader.load())
             
-            # Tự động quét file Word luật (.docx)
+            # Quét file Word luật
             docx_loader = DirectoryLoader("data", glob="**/*.docx", loader_cls=Docx2txtLoader)
             documents.extend(docx_loader.load())
             
-            # Tự động quét file văn bản thuần (.txt)
+            # Quét file văn bản thuần TXT
             txt_loader = DirectoryLoader("data", glob="**/*.txt", loader_cls=TextLoader)
             documents.extend(txt_loader.load())
         
         if not documents:
             return None
 
-        # TỐI ƯU CHO LUẬT: Cắt đoạn lớn hơn (1500 ký tự) để giữ trọn vẹn ngữ cảnh một Điều Luật
+        # Cắt đoạn lớn (1500 ký tự) để giữ trọn vẹn ngữ cảnh Điều/Khoản luật
         text_splitter = RecursiveCharacterTextSplitter(chunk_size=1500, chunk_overlap=300)
         splits = text_splitter.split_documents(documents)
         
-        # Số hóa và lưu vào cơ sở dữ liệu Chroma tạm thời
+        # Số hóa văn bản sử dụng mô hình Embedding của Google
         google_embeddings = GoogleGenerativeAIEmbeddings(model="text-embedding-004")
         vectorstore = Chroma.from_documents(documents=splits, embedding=google_embeddings)
-        
-        # Trả về bộ rút trích thông tin liên quan nhất
         return vectorstore.as_retriever(search_kwargs={"k": 5})
 
-    # Tiến hành nạp dữ liệu văn bản từ thư mục data
-    with st.spinner("Hệ thống đang quét và phân tích các văn bản luật trong mục 'data'..."):
+    # Tiến hành nạp dữ liệu văn bản
+    with st.spinner("Đang phân tích các văn bản luật trong thư mục 'data'..."):
         retriever = load_legal_documents()
 
-    # Kiểm tra xem thư mục data đã có file luật nào chưa
-    if retriever is None:
-        st.warning("⚠️ Thư mục 'data' hiện đang trống! Hãy copy các file tài liệu luật (.pdf, .docx, .txt) vào thư mục 'data' nằm cùng cấp với file app.py này, sau đó bấm F5 để tải lại trang.")
-    else:
-        st.sidebar.success("✅ Đã đồng bộ kho
+    # Kiểm tra kho dữ liệu có trống
