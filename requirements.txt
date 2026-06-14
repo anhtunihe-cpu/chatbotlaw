@@ -6,4 +6,3 @@ langchain-google-genai
 pypdf
 chromadb
 streamlit-audiorecorder
-openai
