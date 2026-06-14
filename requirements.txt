@@ -6,3 +6,4 @@ langchain-text-splitters
 pypdf
 docx2txt
 faiss-cpu
+langchain-google-genai
