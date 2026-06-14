@@ -6,4 +6,3 @@ langchain-google-genai>=1.0.5
 pypdf>=4.2.0
 docx2txt>=0.8
 faiss-cpu>=1.8.0
-streamlit-audiorecorder>=0.0.4
