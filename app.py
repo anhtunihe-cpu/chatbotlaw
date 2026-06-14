@@ -6,7 +6,7 @@ from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGener
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
-from st_audiorecorder import st_audiorecorder  # Thư viện ghi âm chuẩn tương thích Streamlit Cloud
+from st_audiorecorder import st_audiorecorder  # Thư viện ghi âm chuẩn cho Streamlit Cloud
 import openai
 import os
 
@@ -16,10 +16,10 @@ st.title("🎙️ Trợ Lý AI Đọc Tài Liệu Bằng Giọng Nói (Gemini)")
 # --- QUẢN LÝ CẤU HÌNH API KEY ---
 st.sidebar.header("🔑 Cấu hình Khóa API")
 
-# Kiểm tra xem có cấu hình Secrets trên Streamlit Cloud không, nếu không thì bắt nhập thủ công
+# Tự động nhận diện Key từ mục Secrets (nếu chạy trên mạng) hoặc bắt nhập từ giao diện
 if "GOOGLE_API_KEY" in st.secrets:
     google_api_key = st.secrets["GOOGLE_API_KEY"]
-    st.sidebar.success("✅ Đã tự động nhận diện Google API Key từ Secrets!")
+    st.sidebar.success("✅ Đã nhận diện Google API Key từ Secrets!")
 else:
     google_api_key = st.sidebar.text_input("Nhập Google Gemini API Key:", type="password")
 
@@ -54,4 +54,4 @@ else:
                 
             for file in files:
                 temp_path = os.path.join("temp_files", file.name)
-                with open
+                # ĐÃ
