@@ -7,9 +7,8 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
 import os
-import base64
 
-# Cấu hình giao diện chatbot
+# Cấu hình giao diện chatbot tra cứu luật
 st.set_page_config(page_title="Trợ Lý Luật Giọng Nói", layout="wide", page_icon="⚖️")
 st.title("⚖️ Trợ Lý AI Tra Cứu Luật Bằng Giọng Nói & Chữ")
 
@@ -23,13 +22,13 @@ google_api_key = ""
 
 if "GOOGLE_API_KEY" in st.secrets and st.secrets["GOOGLE_API_KEY"] != "":
     google_api_key = st.secrets["GOOGLE_API_KEY"]
-    st.sidebar.success("✅ Đã kích hoạt bằng Key bảo mật (Secrets)!")
+    st.sidebar.success("✅ Đã kích hoạt bằng Key trong Secrets!")
 else:
     google_api_key = st.sidebar.text_input("Nhập Google Gemini API Key:", type="password")
 
 # --- ĐIỀU KIỆN KÍCH HOẠT CHẠY ỨNG DỤNG ---
 if not google_api_key:
-    st.info("Vui lòng nhập hoặc cấu hình Google API Key ở thanh bên để kích hoạt trợ lý.", icon="🔑")
+    st.info("Vui lòng cấu hình hoặc nhập Google API Key ở thanh bên để kích hoạt trợ lý luật.", icon="🔑")
 else:
     os.environ["GOOGLE_API_KEY"] = google_api_key
 
@@ -50,35 +49,9 @@ else:
         if not documents:
             return None
 
-        # Cắt đoạn văn bản tối ưu ngữ cảnh luật
+        # Cắt đoạn văn bản tối ưu giữ ngữ cảnh luật
         text_splitter = RecursiveCharacterTextSplitter(chunk_size=1500, chunk_overlap=300)
         splits = text_splitter.split_documents(documents)
         
         google_embeddings = GoogleGenerativeAIEmbeddings(model="text-embedding-004")
-        vectorstore = FAISS.from_documents(documents=splits, embedding=google_embeddings)
-        return vectorstore.as_retriever(search_kwargs={"k": 5})
-
-    with st.spinner("Hệ thống đang phân tích kho tài liệu văn bản luật trong mục 'data'..."):
-        retriever = load_legal_documents()
-
-    if retriever is None:
-        st.warning("⚠️ Thư mục 'data' đang trống! Hãy copy file tài liệu luật (.pdf, .docx, .txt) vào mục 'data' rồi bấm nút bên dưới.")
-        if st.sidebar.button("🔄 Tải lại dữ liệu"):
-            st.rerun()
-    else:
-        st.sidebar.success("✅ Kho dữ liệu văn bản luật đã sẵn sàng!")
-        if st.sidebar.button("🔄 Cập nhật tài liệu mới"):
-            st.cache_resource.clear()
-            st.rerun()
-
-        # Quản lý và hiển thị lịch sử trò chuyện
-        if "messages" not in st.session_state:
-            st.session_state.messages = []
-
-        for message in st.session_state.messages:
-            with st.chat_message(message["role"]):
-                st.write(message["content"])
-
-        # --- KHU VỰC CHỨA TÍNH NĂNG GHI ÂM (HIỂN THỊ CỐ ĐỊNH) ---
-        st.write("---")
-        st.subheader("🎙️ Đ
+        vectorstore = FAISS.
