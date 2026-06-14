@@ -83,4 +83,73 @@ else:
                     try:
                         audio_llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash")
                         
+                        # Đoạn code mở file âm thanh đã được chỉnh lề đồng bộ bằng dấu cách chuẩn Python
                         with open(audio_file_path, "rb") as f:
+                            audio_bytes = f.read()
+                        
+                        audio_data = {
+                            "mime_type": "audio/wav",
+                            "data": audio_bytes
+                        }
+                        
+                        response = audio_llm.invoke([
+                            "Hãy nghe đoạn âm thanh này và chuyển nó thành văn bản chữ viết tiếng Việt một cách chính xác nhất. Chỉ trả về văn bản được nói, không giải thích gì thêm.",
+                            audio_data
+                        ])
+                        user_query = response.content.strip()
+                        st.sidebar.info(f"Giọng nói nhận diện: *\"{user_query}\"*")
+                    except Exception as e:
+                        st.sidebar.error(f"Lỗi nhận diện giọng nói: {e}")
+        else:
+            st.sidebar.warning("⚠️ Tính năng nói đang thiết lập ngầm.")
+
+        # --- QUẢN LÝ LỊCH SỬ CHAT ---
+        if "messages" not in st.session_state:
+            st.session_state.messages = []
+
+        for message in st.session_state.messages:
+            with st.chat_message(message["role"]):
+                st.write(message["content"])
+
+        text_input = st.chat_input("Gõ nội dung cần hỏi vào đây...")
+        if text_input:
+            user_query = text_input
+
+        # --- XỬ LÝ AI TRẢ LỜI TÀI LIỆU (RAG) ---
+        if user_query:
+            if not st.session_state.messages or st.session_state.messages[-1]["content"] != user_query:
+                st.session_state.messages.append({"role": "user", "content": user_query})
+                with st.chat_message("user"):
+                    st.write(user_query)
+
+                with st.chat_message("assistant"):
+                    with st.spinner("Gemini đang truy vấn văn bản để trả lời..."):
+                        llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", temperature=0.2)
+                        
+                        system_prompt = """Bạn là một trợ lý ảo chuyên nghiệp, có nhiệm vụ trả lời câu hỏi dựa vào tài liệu nội bộ.
+Hãy sử dụng các đoạn bối cảnh dưới đây để trả lời câu hỏi của người dùng.
+Nếu thông tin được hỏi hoàn toàn không xuất hiện trong tài liệu, hãy trả lời chính xác rằng: 'Thông tin này không có trong tài liệu bạn cung cấp'.
+Tuyệt đối không tự đoán hoặc bịa ra câu trả lời.
+
+Bối cảnh tài liệu trích xuất:
+{context}"""
+                        
+                        prompt = ChatPromptTemplate.from_messages([
+                            ("system", system_prompt),
+                            ("human", "{question}"),
+                        ])
+                        
+                        def format_docs(docs):
+                            return "\n\n".join(doc.page_content for doc in docs)
+                        
+                        rag_chain = (
+                            {"context": retriever | format_docs, "question": RunnablePassthrough()}
+                            | prompt
+                            | llm
+                            | StrOutputParser()
+                        )
+                        
+                        answer = rag_chain.invoke(user_query)
+                        st.write(answer)
+                        st.session_state.messages.append({"role": "assistant", "content": answer})
+                        st.rerun()
