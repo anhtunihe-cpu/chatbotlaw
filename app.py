@@ -8,15 +8,16 @@ from langchain_core.runnables import RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
 import os
 
-# 1. Giao dien chinh - Viet tieu de ngan gon de khong bao gio bi loi be dong chuoi chu
-st.set_page_config(page_title="AI Chatbot Law", layout="wide")
-st.title("AI Law Assistant - Chat va Ghi am tra cuu")
+# --- 1. PAGE CONFIGURATION ---
+st.set_page_config(page_title="AI Document Assistant", layout="wide")
+st.title("🤖 AI Document Voice Assistant")
 
+# Create data directory if it does not exist
 if not os.path.exists("data"):
     os.makedirs("data")
 
-# --- 2. QUAN LY CAU HINH API KEY ---
-st.sidebar.header("API Key Configuration")
+# --- 2. SIDEBAR API KEY CONFIGURATION ---
+st.sidebar.header("API Configuration")
 google_api_key = ""
 
 if "GOOGLE_API_KEY" in st.secrets and st.secrets["GOOGLE_API_KEY"] != "":
@@ -25,15 +26,15 @@ if "GOOGLE_API_KEY" in st.secrets and st.secrets["GOOGLE_API_KEY"] != "":
 else:
     google_api_key = st.sidebar.text_input("Enter Google Gemini API Key:", type="password")
 
-# --- 3. DIEU KIEN KICH HOAT APP ---
+# --- 3. MAIN APPLICATION LOGIC ---
 if not google_api_key:
-    st.info("Please enter Google Gemini API Key in the sidebar to start.")
+    st.info("Please configure or enter your Google Gemini API Key in the sidebar to activate the assistant.")
 else:
     os.environ["GOOGLE_API_KEY"] = google_api_key
 
-    # Ham nap va phan tich tai lieu trong thu muc 'data'
+    # Document Processor function using FAISS Database
     @st.cache_resource
-    def load_legal_documents():
+    def load_local_knowledge_base():
         documents = []
         if os.path.exists("data"):
             pdf_loader = DirectoryLoader("data", glob="**/*.pdf", loader_cls=PyPDFLoader)
@@ -58,19 +59,4 @@ else:
             )
             vectorstore = FAISS.from_documents(documents=splits, embedding=google_embeddings)
             return vectorstore.as_retriever(search_kwargs={"k": 5})
-        except Exception as embed_error:
-            st.error(f"Embedding Error: {embed_error}")
-            return None
-
-    # DA SUA LOI CHU HOA TAI DAY: Doi tu 'St.spinner' thanh 'st.spinner' viet thuong chuan xac
-    with st.spinner("Processing documents in 'data' folder..."):
-        retriever = load_legal_documents()
-
-    if retriever is None:
-        st.warning("Thu muc 'data' dang trong! Hay de file vao muc 'data' tren GitHub.")
-        if st.sidebar.button("Reload Data"):
-            st.rerun()
-    else:
-        st.sidebar.success("Database synced successfully!")
-        if st.sidebar.button("Clear Cache"):
-            st.
+        except Exception as embed_error
