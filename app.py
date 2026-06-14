@@ -6,10 +6,9 @@ from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGener
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
-import openai
 import os
 
-# BỌC AN TOÀN: Thử import thư viện ghi âm, nếu lỗi thì bỏ qua không làm sập App
+# Bọc an toàn thư viện ghi âm không cần OpenAI Key
 try:
     from st_audiorecorder import st_audiorecorder
     HAS_AUDIO = True
@@ -17,9 +16,9 @@ except ImportError:
     HAS_AUDIO = False
 
 st.set_page_config(page_title="AI Voice Đọc Tài Liệu", layout="wide", page_icon="🎙️")
-st.title("🎙️ Trợ Lý AI Đọc Tài Liệu Thông Minh (Gemini)")
+st.title("🎙️ Trợ Lý AI Đọc Tài Liệu Bằng Giọng Nói (Chỉ Dùng Gemini)")
 
-# --- QUẢN LÝ CẤU HÌNH API KEY ---
+# --- QUẢN LÝ CẤU HÌNH API KEY (CHỈ DÙNG GOOGLE) ---
 st.sidebar.header("🔑 Cấu hình Khóa API")
 
 if "GOOGLE_API_KEY" in st.secrets:
@@ -28,20 +27,11 @@ if "GOOGLE_API_KEY" in st.secrets:
 else:
     google_api_key = st.sidebar.text_input("Nhập Google Gemini API Key:", type="password")
 
-if "OPENAI_API_KEY" in st.secrets:
-    openai_api_key = st.secrets["OPENAI_API_KEY"]
-    openai.api_key = openai_api_key
-else:
-    openai_api_key = st.sidebar.text_input("Nhập OpenAI API Key (Dịch giọng nói):", type="password")
-
-
 # --- ĐIỀU KIỆN ĐỂ KÍCH HOẠT ỨNG DỤNG ---
 if not google_api_key:
-    st.info("Vui lòng điền hoặc cấu hình Google Gemini API Key để bắt đầu ứng dụng.", icon="🔑")
+    st.info("Vui lòng điền hoặc cấu hình Google Gemini API Key ở thanh bên để bắt đầu.", icon="🔑")
 else:
     os.environ["GOOGLE_API_KEY"] = google_api_key
-    if openai_api_key:
-        openai.api_key = openai_api_key
 
     # --- TẢI FILE TÀI LIỆU TRÊN SIDEBAR ---
     uploaded_files = st.sidebar.file_uploader(
@@ -76,37 +66,44 @@ else:
             retriever = process_uploaded_files(uploaded_files)
             st.sidebar.success("Đã nạp kho dữ liệu tài liệu thành công!")
 
-        # --- KHU VỰC GHI ÂM GIỌNG NÓI (VOICE INPUT) ---
+        # --- KHU VỰC GHI ÂM GIỌNG NÓI ---
         st.sidebar.write("---")
         st.sidebar.header("🎙️ Nói với Chatbot")
         
         user_query = ""  # Biến lưu trữ câu hỏi cuối cùng
         
-        # Nếu hệ thống cài đặt thành công thư viện âm thanh thì mới hiển thị nút nói
         if HAS_AUDIO:
-            if not openai_api_key:
-                st.sidebar.warning("⚠️ Hãy nhập thêm OpenAI API Key để bật tính năng Nói.")
-            else:
-                audio = st_audiorecorder("Bấm để nói 🎤", "Đang nghe... Bấm lại để dừng 🛑")
+            audio = st_audiorecorder("Bấm để nói 🎤", "Đang nghe... Bấm lại để dừng 🛑")
+            
+            if len(audio) > 0:
+                audio_file_path = "temp_audio.wav"
+                audio.export(audio_file_path, format="wav")
                 
-                if len(audio) > 0:
-                    audio_file_path = "temp_audio.mp3"
-                    audio.export(audio_file_path, format="mp3")
-                    
-                    with st.spinner("AI đang lắng nghe và dịch giọng nói..."):
-                        try:
-                            with open(audio_file_path, "rb") as f:
-                                transcript = openai.audio.transcriptions.create(
-                                    model="whisper-1", 
-                                    file=f,
-                                    language="vi"
-                                )
-                            user_query = transcript.text
-                            st.sidebar.info(f"Giọng nói nhận diện: *\"{user_query}\"*")
-                        except Exception as e:
-                            st.sidebar.error(f"Lỗi nhận diện giọng nói: {e}")
+                with st.spinner("Gemini đang nghe và dịch giọng nói của bạn..."):
+                    try:
+                        # Sử dụng mô hình Gemini Flash để tự đọc hiểu file âm thanh trực tiếp (Không cần Whisper)
+                        audio_llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash")
+                        
+                        # Đọc file nhị phân của âm thanh gửi thẳng qua API của Google
+                        with open(audio_file_path, "rb") as f:
+                            audio_bytes = f.read()
+                        
+                        audio_data = {
+                            "mime_type": "audio/wav",
+                            "data": audio_bytes
+                        }
+                        
+                        # Ép Gemini nghe âm thanh và gõ lại thành văn bản tiếng Việt
+                        response = audio_llm.invoke([
+                            "Hãy nghe đoạn âm thanh này và chuyển nó thành văn bản chữ viết tiếng Việt một cách chính xác nhất. Chỉ trả về văn bản được nói, không giải thích gì thêm.",
+                            audio_data
+                        ])
+                        user_query = response.content.strip()
+                        st.sidebar.info(f"Giọng nói nhận diện: *\"{user_query}\"*")
+                    except Exception as e:
+                        st.sidebar.error(f"Lỗi nhận diện giọng nói: {e}")
         else:
-            st.sidebar.warning("⚠️ Máy chủ đang thiết lập micro phần cứng, tính năng nói tạm ẩn. Bạn hãy gõ chữ ở khung chat dưới màn hình nhé!")
+            st.sidebar.warning("⚠️ Tính năng nói đang thiết lập ngầm.")
 
         # --- QUẢN LÝ LỊCH SỬ CHAT ---
         if "messages" not in st.session_state:
@@ -133,27 +130,4 @@ else:
                         
                         system_prompt = (
                             "Bạn là một trợ lý ảo chuyên nghiệp, chuyên trả lời dựa trên tài liệu cung cấp.\n"
-                            "Hãy sử dụng các đoạn bối cảnh dưới đây để trả lời câu hỏi.\n"
-                            "Nếu thông tin không có trong tài liệu, hãy nói thật là 'Thông tin này không có trong tài liệu'.\n"
-                            "Tuyệt đối không tự đoán hoặc bịa ra câu trả lời.\n\n"
-                            "Bối cảnh tài liệu trích xuất:\n{context}"
-                        )
-                        prompt = ChatPromptTemplate.from_messages([
-                            ("system", system_prompt),
-                            ("human", "{question}"),
-                        ])
-                        
-                        def format_docs(docs):
-                            return "\n\n".join(doc.page_content for doc in docs)
-                        
-                        rag_chain = (
-                            {"context": retriever | format_docs, "question": RunnablePassthrough()}
-                            | prompt
-                            | llm
-                            | StrOutputParser()
-                        )
-                        
-                        answer = rag_chain.invoke(user_query)
-                        st.write(answer)
-                        st.session_state.messages.append({"role": "assistant", "content": answer})
-                        st.rerun()
+                            "Hãy sử dụng các đoạn bối cảnh dưới đây để trả lời câu hỏi
