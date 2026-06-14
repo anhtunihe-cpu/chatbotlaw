@@ -8,10 +8,11 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
 
-st.set_page_config(page_title="AI Law Assistant", layout="wide")
+# 1. UI Setup
+st.set_page_config(page_title="AI Chatbot Law", layout="wide")
 st.title("⚖️ AI Law Assistant")
 
-# Cấu hình API Key từ Streamlit Secrets
+# 2. API Key Setup
 api_key = st.secrets.get("GOOGLE_API_KEY") or st.sidebar.text_input("Enter Gemini API Key:", type="password")
 
 if not api_key:
@@ -20,12 +21,13 @@ if not api_key:
 
 os.environ["GOOGLE_API_KEY"] = api_key
 
+# 3. Document Processing với model embedding-001 ổn định
 @st.cache_resource
 def load_legal_documents():
     if not os.path.exists("data"): return None
     
     documents = []
-    # Quét file
+    # Quét dữ liệu
     for loader_cls in [PyPDFLoader, Docx2txtLoader, TextLoader]:
         loader = DirectoryLoader("data", glob=f"**/*.{'pdf' if loader_cls==PyPDFLoader else 'docx' if loader_cls==Docx2txtLoader else 'txt'}", loader_cls=loader_cls)
         documents.extend(loader.load())
@@ -35,35 +37,36 @@ def load_legal_documents():
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
     splits = text_splitter.split_documents(documents)
     
-    # SỬA LỖI: Bỏ tiền tố 'models/' và dùng tên đơn giản hơn
+    # SỬA LỖI: Sử dụng model embedding-001 thay vì text-embedding-004
     try:
-        embeddings = GoogleGenerativeAIEmbeddings(model="text-embedding-004", google_api_key=api_key)
+        embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001", google_api_key=api_key)
         vectorstore = FAISS.from_documents(splits, embeddings)
         return vectorstore.as_retriever()
     except Exception as e:
-        st.error(f"Embedding Error: {e}. Try changing the model name.")
+        st.error(f"Embedding Error: {e}")
         return None
 
 retriever = load_legal_documents()
 
+# 4. App Flow & Chat Interface
 if not retriever:
-    st.warning("No documents found or Embedding failed.")
+    st.warning("No documents found in 'data/' folder or Embedding failed.")
 else:
     # Voice Input
-    audio_value = st.audio_input("Voice Input (Click to speak)")
     user_query = ""
+    audio_value = st.audio_input("Voice Input (Click to speak)")
 
     if audio_value:
-        with st.spinner("Processing..."):
+        with st.spinner("Processing voice..."):
             audio_llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", google_api_key=api_key)
             response = audio_llm.invoke([
-                "Transcribe to Vietnamese.",
+                "Transcribe this audio to Vietnamese text. Return only the text.",
                 {"mime_type": "audio/wav", "data": audio_value.read()}
             ])
             user_query = response.content.strip()
             st.info(f"Recognized: {user_query}")
 
-    text_input = st.chat_input("Or type your question...")
+    text_input = st.chat_input("Or type your legal question...")
     if text_input: user_query = text_input
 
     if user_query:
